@@ -13,7 +13,6 @@ namespace SixthSense.Helpers
     public class SixthSenseAlertComponent : MonoBehaviour
     {
         private CanvasGroup _canvasGroup;
-        private AudioSource _audioSource;
         private Image _iconImage;
         private Coroutine _fadeCoroutine;
 
@@ -50,13 +49,8 @@ namespace SixthSense.Helpers
             iconRect.anchorMin = new Vector2(0.5f, 0.5f);
             iconRect.anchorMax = new Vector2(0.5f, 0.5f);
             iconRect.pivot = new Vector2(0.5f, 0.5f);
-            iconRect.sizeDelta = new Vector2(96f, 96f);
+            iconRect.sizeDelta = new Vector2(120f, 120f);
             iconRect.anchoredPosition = Vector2.zero;
-
-            // Audio
-            _audioSource = gameObject.AddComponent<AudioSource>();
-            _audioSource.playOnAwake = false;
-            _audioSource.spatialBlend = 0f;
 
             gameObject.SetActive(false);
         }

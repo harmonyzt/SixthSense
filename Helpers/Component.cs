@@ -15,6 +15,8 @@ namespace SixthSense.Helpers
         private CanvasGroup _canvasGroup;
         private Image _iconImage;
         private Coroutine _fadeCoroutine;
+        
+        private bool _isShowing = false;
 
         // After looking through dozens of articles, all I found is this, and I can't find a native efts way of displaying icons.
         // Please, if someone is better at this, Make a PR. I would appreciate it <3
@@ -51,25 +53,40 @@ namespace SixthSense.Helpers
             iconRect.pivot = new Vector2(0.5f, 0.5f);
             iconRect.sizeDelta = new Vector2(120f, 120f);
             iconRect.anchoredPosition = Vector2.zero;
-
-            gameObject.SetActive(false);
         }
 
         public async Task ShowAlert()
         {
-            if (_fadeCoroutine != null)
+            if (_isShowing)
             {
-                StopCoroutine(_fadeCoroutine);
+                return;
             }
+            
+            _isShowing = true;
+            
+            try
+            {
+                gameObject.SetActive(true);
 
-            _fadeCoroutine = StartCoroutine(FadeAlertRoutine());
-            
-            if (Plugin.EnableSound.Value)
-            {
-                await PlaySpotSound();
+                _canvasGroup.alpha = 0f;
+                
+                if (_fadeCoroutine != null)
+                {
+                    StopCoroutine(_fadeCoroutine);
+                }
+
+                _fadeCoroutine = StartCoroutine(FadeAlertRoutine());
+                
+                if (Plugin.EnableSound.Value)
+                {
+                    await PlaySpotSound();
+                }
             }
-            
-            gameObject.SetActive(true);
+            catch (Exception ex)
+            {
+                Plugin.LogSource.LogError($"[SixthSense] Error showing alert: {ex.Message}");
+                _isShowing = false;
+            }
         }
 
         private IEnumerator FadeAlertRoutine()
@@ -87,7 +104,8 @@ namespace SixthSense.Helpers
 
             _canvasGroup.alpha = 1f;
             
-            yield return new WaitForSeconds(Plugin.AlertDuration.Value);
+            float duration = Plugin.AlertDuration;
+            yield return new WaitForSeconds(duration);
 
             // Fade Out
             elapsed = 0f;
@@ -99,14 +117,16 @@ namespace SixthSense.Helpers
             }
 
             _canvasGroup.alpha = 0f;
+            
             gameObject.SetActive(false);
+            _isShowing = false;
         }
 
-        private async Task PlaySpotSound()
+        private static async Task PlaySpotSound()
         {
             AudioClip clip = await AudioLoader.LoadAudioAsync("alert_sound.mp3");
 
-            if (clip == null)
+            if (!clip)
             {
                 Plugin.LogSource.LogError("[SixthSense] Failed to play spot sound: clip is null.");
                 return;
@@ -117,7 +137,7 @@ namespace SixthSense.Helpers
                 Singleton<GUISounds>.Instance.PlaySound(
                     clip, 
                     single: false, 
-                    commonUiSound: true, 
+                    commonUiSound: false, 
                     volume: Plugin.SoundVolume.Value
                 );
             }
@@ -149,12 +169,12 @@ namespace SixthSense.Helpers
                 }
                 else
                 {
-                    Debug.LogError($"[SixthSense] Icon file not found at path: {filePath}");
+                    Plugin.LogSource.LogError($"[SixthSense] Icon file not found at path: {filePath}");
                 }
             }
             catch (Exception ex)
             {
-                Debug.LogError($"[SixthSense] Error loading sprite: {ex.Message}");
+                Plugin.LogSource.LogError($"[SixthSense] Error loading sprite: {ex.Message}");
             }
 
             return null;

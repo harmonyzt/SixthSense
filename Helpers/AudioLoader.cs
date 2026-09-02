@@ -28,7 +28,7 @@ public static class AudioLoader
         string fullPath = Path.Combine(MainDirectory, fileName);
         if (!File.Exists(fullPath))
         {
-            Debug.LogError($"[SixthSense] Audio file not found at: {fullPath}");
+            Plugin.LogSource.LogError($"[SixthSense] Audio file not found at: {fullPath}");
             return null;
         }
         
@@ -45,12 +45,12 @@ public static class AudioLoader
 
             if (www.result != UnityWebRequest.Result.Success)
             {
-                Debug.LogError($"[SixthSense] Error loading audio from {url}: {www.error}");
+                Plugin.LogSource.LogError($"[SixthSense] Error loading audio from {url}: {www.error}");
                 return null;
             }
 
             AudioClip clip = DownloadHandlerAudioClip.GetContent(www);
-            if (clip != null)
+            if (clip)
             {
                 clip.name = fileName;
                 AudioCache[fileName] = clip;

@@ -4,7 +4,6 @@ using EFT;
 using HarmonyLib;
 using SAIN.SAINComponent.Classes.EnemyClasses;
 using SixthSense.Helpers;
-using SixthSense.Logic;
 
 namespace SixthSense.Patches
 {
@@ -33,7 +32,7 @@ namespace SixthSense.Patches
                     return;
                 }
                 
-                SixthSenseAlert.Trigger();
+                AlertDelayer.TriggerDelayedAlert();
             }
             catch (Exception ex)
             {

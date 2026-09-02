@@ -10,6 +10,9 @@ namespace SixthSense.Patches
 {
     public class GameStartedPatch : ModulePatch
     {
+        public static string MainPlayerId { get; private set; }
+        public static int MainPlayerPerceptionSkill { get; private set; }
+        
         protected override MethodBase GetTargetMethod()
         {
             return AccessTools.Method(typeof(GameWorld), nameof(GameWorld.OnGameStarted));
@@ -21,7 +24,14 @@ namespace SixthSense.Patches
             try
             {
                 await AudioLoader.LoadAudioAsync("alert_sound");
-                Plugin.LogSource.LogInfo("[Sixth Sense] Preloaded sounds.");
+
+                MainPlayerId = __instance.MainPlayer?.ProfileId;
+
+                // Refresh our delay of the trigger
+                MainPlayerPerceptionSkill = __instance.MainPlayer.Skills.Perception.Level;
+                ReCalculateAlert.Start(MainPlayerPerceptionSkill);
+                
+                Plugin.LogSource.LogInfo($"[Sixth Sense] Preloaded.");
             }
             catch (Exception ex)
             {

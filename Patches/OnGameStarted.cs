@@ -1,6 +1,5 @@
 ﻿using System;
 using System.Reflection;
-using System.Threading.Tasks;
 using HarmonyLib;
 using EFT;
 using SixthSense.Helpers;
@@ -8,18 +7,18 @@ using SPT.Reflection.Patching;
 
 namespace SixthSense.Patches
 {
-    public class GameStartedPatch : ModulePatch
+    internal class GameStartedAlreadyPatch : ModulePatch
     {
         public static string MainPlayerId { get; private set; }
         public static int MainPlayerPerceptionSkill { get; private set; }
-        
+
         protected override MethodBase GetTargetMethod()
         {
             return AccessTools.Method(typeof(GameWorld), nameof(GameWorld.OnGameStarted));
         }
 
-        [PatchPrefix]
-        private static async Task PatchPrefix(GameWorld __instance)
+        [PatchPostfix]
+        public static async void PatchPostfix(GameWorld __instance)
         {
             try
             {
@@ -40,3 +39,4 @@ namespace SixthSense.Patches
         }
     }
 }
+

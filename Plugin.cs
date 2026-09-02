@@ -3,7 +3,7 @@ using BepInEx.Configuration;
 using BepInEx.Logging;
 using HarmonyLib;
 using SixthSense.Helpers;
-using UnityEngine;
+using SixthSense.Patches;
 
 namespace SixthSense
 {
@@ -32,6 +32,8 @@ namespace SixthSense
             
             _harmony = new Harmony("com.harmonyzt.SixthSense");
             _harmony.PatchAll();
+            
+            new GameStartedAlreadyPatch().Enable();
             
             AlertDelayer.Initialize();
             

@@ -2,9 +2,6 @@ using System;
 using System.Collections;
 using System.IO;
 using System.Reflection;
-using System.Threading.Tasks;
-using Comfort.Common;
-using EFT.UI;
 using UnityEngine;
 using UnityEngine.UI;
 
@@ -15,15 +12,35 @@ namespace SixthSense.Helpers
         private CanvasGroup _canvasGroup;
         private Image _iconImage;
         private Coroutine _fadeCoroutine;
-        
-        private bool _isShowing = false;
+        private Texture2D _iconTexture;
+        private Sprite _iconSprite;
 
-        // After looking through dozens of articles, all I found is this, and I can't find a native efts way of displaying icons.
-        // Please, if someone is better at this, Make a PR. I would appreciate it <3
+        private bool _isShowing;
+        private float _showStartTime;
+
+        // Fade timings
+        private const float FadeInTime = 0.15f;
+        private const float FadeOutTime = 0.35f;
+
         private void Awake()
         {
+            EnsureInitialized();
+        }
+
+        private void EnsureInitialized()
+        {
+            if (_canvasGroup != null)
+            {
+                return;
+            }
+
             // Container
-            var rect = gameObject.AddComponent<RectTransform>();
+            RectTransform rect = gameObject.GetComponent<RectTransform>();
+            if (rect == null)
+            {
+                rect = gameObject.AddComponent<RectTransform>();
+            }
+
             rect.anchorMin = new Vector2(0.5f, 1f);
             rect.anchorMax = new Vector2(0.5f, 1f);
             rect.pivot = new Vector2(0.5f, 1f);
@@ -31,23 +48,31 @@ namespace SixthSense.Helpers
             rect.sizeDelta = new Vector2(140f, 140f);
 
             // Canvas
-            _canvasGroup = gameObject.AddComponent<CanvasGroup>();
+            _canvasGroup = gameObject.GetComponent<CanvasGroup>();
+            if (_canvasGroup == null)
+            {
+                _canvasGroup = gameObject.AddComponent<CanvasGroup>();
+            }
+
             _canvasGroup.alpha = 0f;
             _canvasGroup.blocksRaycasts = false;
+            _canvasGroup.interactable = false;
 
-            var iconObject = new GameObject("SixthSenseIcon");
+            GameObject iconObject = new GameObject("SixthSenseIcon", typeof(RectTransform));
             iconObject.transform.SetParent(transform, false);
 
             _iconImage = iconObject.AddComponent<Image>();
-            _iconImage.color = Color.white; 
+            _iconImage.color = Color.white;
+            _iconImage.raycastTarget = false;
+            _iconImage.preserveAspect = true;
 
-            var sprite = LoadSpriteFromPluginDir("alert_icon.png");
-            if (sprite)
-            {
-                _iconImage.sprite = sprite;
-            }
+            _iconSprite = LoadSpriteFromPluginDir(Plugin.AlertIconFile);
+            _iconImage.sprite = _iconSprite;
 
-            var iconRect = iconObject.GetComponent<RectTransform>();
+            // Don't render white square if no Image
+            _iconImage.enabled = _iconSprite != null;
+
+            RectTransform iconRect = iconObject.GetComponent<RectTransform>();
             iconRect.anchorMin = new Vector2(0.5f, 0.5f);
             iconRect.anchorMax = new Vector2(0.5f, 0.5f);
             iconRect.pivot = new Vector2(0.5f, 0.5f);
@@ -55,129 +80,162 @@ namespace SixthSense.Helpers
             iconRect.anchoredPosition = Vector2.zero;
         }
 
-        public async Task ShowAlert()
+        /// <summary>
+        /// Shows the icon and starts the fade. Never throws, never blocks: if a previous fade was
+        /// interrupted (scene change, object disabled, ...) the state is recovered instead of
+        /// latching <c>_isShowing</c> to true forever - which used to stop every following alert.
+        /// </summary>
+        public void ShowAlert()
         {
-            if (_isShowing)
+            if (_isShowing && Time.time - _showStartTime < Plugin.AlertDuration + FadeInTime + FadeOutTime + 1f)
             {
                 return;
             }
-            
+
             _isShowing = true;
-            
+            _showStartTime = Time.time;
+
             try
             {
-                gameObject.SetActive(true);
+                EnsureInitialized();
+
+                if (_canvasGroup == null)
+                {
+                    Plugin.LogSource?.LogError(
+                        "[SixthSense] Alert UI was not initialised; cannot show the alert icon.");
+                    _isShowing = false;
+                    return;
+                }
 
                 _canvasGroup.alpha = 0f;
-                
+
                 if (_fadeCoroutine != null)
                 {
                     StopCoroutine(_fadeCoroutine);
+                    _fadeCoroutine = null;
                 }
 
                 _fadeCoroutine = StartCoroutine(FadeAlertRoutine());
-                
-                if (Plugin.EnableSound.Value)
-                {
-                    await PlaySpotSound();
-                }
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"[SixthSense] Error showing alert: {ex.Message}");
+                Plugin.LogSource?.LogError($"[SixthSense] Error showing alert: {ex}");
                 _isShowing = false;
             }
         }
 
         private IEnumerator FadeAlertRoutine()
         {
-            // Fade In
-            float elapsed = 0f;
-            float startAlpha = _canvasGroup.alpha;
-
-            while (elapsed < 0.15f)
+            try
             {
-                elapsed += Time.deltaTime;
-                _canvasGroup.alpha = Mathf.Lerp(startAlpha, 1f, elapsed / 0.25f);
-                yield return null;
+                // Fade In
+                float elapsed = 0f;
+                float startAlpha = _canvasGroup.alpha;
+
+                while (elapsed < FadeInTime)
+                {
+                    elapsed += Time.deltaTime;
+                    _canvasGroup.alpha = Mathf.Lerp(startAlpha, 1f, elapsed / FadeInTime);
+                    yield return null;
+                }
+
+                _canvasGroup.alpha = 1f;
+
+                yield return new WaitForSeconds(Plugin.AlertDuration);
+
+                // Fade Out
+                elapsed = 0f;
+                while (elapsed < FadeOutTime)
+                {
+                    elapsed += Time.deltaTime;
+                    _canvasGroup.alpha = Mathf.Lerp(1f, 0f, elapsed / FadeOutTime);
+                    yield return null;
+                }
             }
-
-            _canvasGroup.alpha = 1f;
-            
-            float duration = Plugin.AlertDuration;
-            yield return new WaitForSeconds(duration);
-
-            // Fade Out
-            elapsed = 0f;
-            while (elapsed < 0.35f)
+            finally
             {
-                elapsed += Time.deltaTime;
-                _canvasGroup.alpha = Mathf.Lerp(1f, 0f, elapsed / 0.35f);
-                yield return null;
-            }
+                if (_canvasGroup != null)
+                {
+                    _canvasGroup.alpha = 0f;
+                }
 
-            _canvasGroup.alpha = 0f;
-            
-            gameObject.SetActive(false);
-            _isShowing = false;
-        }
-
-        private static async Task PlaySpotSound()
-        {
-            AudioClip clip = await AudioLoader.LoadAudioAsync("alert_sound.mp3");
-
-            if (!clip)
-            {
-                Plugin.LogSource.LogError("[SixthSense] Failed to play spot sound: clip is null.");
-                return;
-            }
-            
-            if (Singleton<GUISounds>.Instantiated)
-            {
-                Singleton<GUISounds>.Instance.PlaySound(
-                    clip, 
-                    single: false, 
-                    commonUiSound: false, 
-                    volume: Plugin.SoundVolume.Value
-                );
+                _isShowing = false;
+                _fadeCoroutine = null;
             }
         }
-        
+
         private Sprite LoadSpriteFromPluginDir(string fileName)
         {
             try
             {
                 string dllPath = Assembly.GetExecutingAssembly().Location;
                 string pluginDir = Path.GetDirectoryName(dllPath);
-                string filePath = Path.Combine(pluginDir, fileName);
+                string filePath = Path.Combine(pluginDir ?? string.Empty, fileName);
 
-                if (File.Exists(filePath))
+                if (!File.Exists(filePath))
                 {
-                    byte[] fileData = File.ReadAllBytes(filePath);
-                    
-                    // Create texture
-                    Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
-                    if (ImageConversion.LoadImage(tex, fileData))
-                    {
-                        return Sprite.Create(
-                            tex, 
-                            new Rect(0, 0, tex.width, tex.height), 
-                            new Vector2(0.5f, 0.5f), 
-                            100f
-                        );
-                    }
+                    Plugin.LogSource?.LogError($"[SixthSense] Icon file not found at path: {filePath}");
+                    return null;
                 }
-                else
+
+                byte[] fileData = File.ReadAllBytes(filePath);
+
+                // Create texture
+                Texture2D tex = new Texture2D(2, 2, TextureFormat.RGBA32, false);
+                if (ImageConversion.LoadImage(tex, fileData))
                 {
-                    Plugin.LogSource.LogError($"[SixthSense] Icon file not found at path: {filePath}");
+                    tex.hideFlags |= HideFlags.DontUnloadUnusedAsset;
+                    _iconTexture = tex; // Store reference
+
+                    Sprite sprite = Sprite.Create(
+                        tex,
+                        new Rect(0, 0, tex.width, tex.height),
+                        new Vector2(0.5f, 0.5f),
+                        100f,
+                        0,
+                        SpriteMeshType.FullRect);
+
+                    sprite.hideFlags |= HideFlags.DontUnloadUnusedAsset;
+                    return sprite;
                 }
+
+                Destroy(tex); // Clean up if LoadImage fail
+                Plugin.LogSource?.LogError($"[SixthSense] Could not decode icon '{filePath}'.");
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"[SixthSense] Error loading sprite: {ex.Message}");
+                Plugin.LogSource?.LogError($"[SixthSense] Error loading sprite: {ex}");
             }
 
             return null;
+        }
+
+        private void OnDestroy()
+        {
+            if (_fadeCoroutine != null)
+            {
+                StopCoroutine(_fadeCoroutine);
+                _fadeCoroutine = null;
+            }
+
+            _isShowing = false;
+
+            if (_iconImage != null)
+            {
+                _iconImage.sprite = null;
+            }
+
+            if (_iconSprite != null)
+            {
+                Destroy(_iconSprite);
+                _iconSprite = null;
+            }
+
+            if (_iconTexture != null)
+            {
+                Destroy(_iconTexture);
+                _iconTexture = null;
+            }
         }
     }
 }

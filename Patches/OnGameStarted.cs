@@ -1,7 +1,7 @@
 ﻿using System;
 using System.Reflection;
-using HarmonyLib;
 using EFT;
+using HarmonyLib;
 using SixthSense.Helpers;
 using SPT.Reflection.Patching;
 
@@ -18,25 +18,33 @@ namespace SixthSense.Patches
         }
 
         [PatchPostfix]
-        public static async void PatchPostfix(GameWorld __instance)
+        public static void PatchPostfix(GameWorld __instance)
         {
             try
             {
-                await AudioLoader.LoadAudioAsync("alert_sound");
+                Player mainPlayer = __instance.MainPlayer;
 
-                MainPlayerId = __instance.MainPlayer?.ProfileId;
+                if (mainPlayer == null)
+                {
+                    Plugin.LogSource?.LogWarning(
+                        "[SixthSense] Raid started without a main player, skipping initialisation.");
+                    return;
+                }
 
-                // Refresh our delay of the trigger
-                MainPlayerPerceptionSkill = __instance.MainPlayer.Skills.Perception.Level;
+                MainPlayerId = mainPlayer.ProfileId;
+                MainPlayerPerceptionSkill = mainPlayer.Skills.Perception.Level;
                 ReCalculateAlert.Start(MainPlayerPerceptionSkill);
-                
-                Plugin.LogSource.LogInfo($"[Sixth Sense] Preloaded.");
+
+                // Clean once raid starts, because we never cleaned it
+                SixthSenseAlert.ResetCooldown();
+
+                // Cache hit p7
+                AudioLoader.Preload(Plugin.AlertSoundFile);
             }
             catch (Exception ex)
             {
-                Plugin.LogSource.LogError($"Error initializing Sixth Sense: {ex.Message}");
+                Plugin.LogSource?.LogError($"Error initializing Sixth Sense: {ex}");
             }
         }
     }
 }
-

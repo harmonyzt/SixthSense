@@ -4,7 +4,7 @@
     <Nullable>disable</Nullable>
     <Authors>SPT</Authors>
     <Copyright></Copyright>
-    <AssemblyVersion>1.7.0</AssemblyVersion>
+    <AssemblyVersion>1.1.1</AssemblyVersion>
     <FileVersion>$(AssemblyVersion)</FileVersion>
     <Configurations>Debug;Release;Package</Configurations>
     <Version>$(AssemblyVersion)</Version>
@@ -121,8 +121,28 @@
       <HintPath>..\..\EscapeFromTarkov_Data\Managed\UnityEngine.UnityWebRequestWWWModule.dll</HintPath>
     </Reference>
   </ItemGroup>
+  <ItemGroup>
+    <None Update="Resources\alert_sound.mp3">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>alert_sound.mp3</TargetPath>
+    </None>
+    <None Update="Resources\alert_icon.png">
+      <CopyToOutputDirectory>PreserveNewest</CopyToOutputDirectory>
+      <TargetPath>alert_icon.png</TargetPath>
+    </None>
+  </ItemGroup>
+    
+  <Target Name="DeployToBepInEx" AfterTargets="Build">
+    <PropertyGroup>
+      <PluginsDirectory>$(ProjectDir)..\..\BepInEx\plugins\SixthSense\</PluginsDirectory>
+    </PropertyGroup>
 
-  <Target Name="PostBuild" AfterTargets="PostBuildEvent">
-    <Exec Command="if not exist &quot;$(ProjectDir)\..\..\BepInEx\plugins&quot; mkdir &quot;$(ProjectDir)\..\..\BepInEx\plugins&quot; &amp;&amp; copy &quot;$(TargetPath)&quot; &quot;$(ProjectDir)\..\..\BepInEx\plugins\$(TargetFileName)&quot;" />
+    <MakeDir Directories="$(PluginsDirectory)" Condition="!Exists('$(PluginsDirectory)')" />
+
+    <Copy SourceFiles="$(TargetPath)" DestinationFolder="$(PluginsDirectory)" SkipUnchangedFiles="true" />
+
+    <Copy SourceFiles="$(ProjectDir)Resources\alert_sound.mp3;$(ProjectDir)Resources\alert_icon.png"
+          DestinationFolder="$(PluginsDirectory)"
+          SkipUnchangedFiles="true" />
   </Target>
 </Project>
